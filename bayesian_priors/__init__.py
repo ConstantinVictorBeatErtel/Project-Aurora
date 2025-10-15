@@ -21,10 +21,10 @@ WHAT THIS DOES:
 VARIABLES WE ARE DOING THIS FOR (with real data):
 - [x] raw material (PPI data → Student-t samples)
 - [x] labor 
-- [ ] logistics
+- [x] logistics
 - [x] fx (FRED exchange rates → Student-t samples)
 - [x] yield (uncertainty-adjusted Beta)
-- [ ] indirect
+- [x] indirect (ECI for US, World Bank CPI for Mexico/China → Student-t samples)
 - [ ] electricity
 - [ ] depreciation
 - [ ] working capital

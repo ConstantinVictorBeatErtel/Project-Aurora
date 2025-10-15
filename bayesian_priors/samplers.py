@@ -22,6 +22,7 @@ from .parameter_estimators import (
     estimate_yield_posterior,
     estimate_labor_posterior,
     estimate_logistics_posterior,
+    estimate_indirect_posterior,
 )
 
 
@@ -35,11 +36,11 @@ class CountrySamplers:
     raw_material: Callable[[int], np.ndarray]
     labor: Callable[[int], np.ndarray]
     logistics: Callable[[int], np.ndarray]
+    indirect: Callable[[int], np.ndarray]
     fx_multiplier: Callable[[int], np.ndarray]
     yield_rate: Callable[[int], np.ndarray]
 
     # Keep other params as constants (no good public data)
-    # indirect_cost: float
     # electricity_cost: float
     # depreciation_cost: float
     # working_capital: float
@@ -122,6 +123,45 @@ def build_samplers_for_country(country: str, baseline_params: Dict) -> CountrySa
             log_std = baseline_params["logistics"]["std"]
             logistics_sampler = lambda n: np.random.normal(log_mean, log_std, n)
 
+    # Indirect (now using posterior from ECI/CPI data)
+    try:
+        # Get baseline indirect cost (handle different dist formats)
+        if isinstance(baseline_params["indirect"], dict):
+            if baseline_params["indirect"].get("dist") == "gamma":
+                # For gamma, mean = shape * scale
+                shape = baseline_params["indirect"]["shape"]
+                scale = baseline_params["indirect"]["scale"]
+                baseline_indirect = shape * scale
+            elif "mean" in baseline_params["indirect"]:
+                baseline_indirect = baseline_params["indirect"]["mean"]
+            else:
+                # Fallback to 10 if no mean specified
+                baseline_indirect = 10.0
+        else:
+            baseline_indirect = baseline_params["indirect"]
+        
+        indirect_post = estimate_indirect_posterior(country, baseline_indirect)
+        
+        def indirect_sampler(n):
+            return indirect_post.sample_predictive(n)
+        
+        print(f"  ✓ Indirect: Student-t predictive from ECI/CPI data")
+    except Exception as e:
+        # Robust fallback to baseline parameters
+        print(f"  ⚠️  Indirect posterior failed for {country}: {e}. Using baseline.")
+        if baseline_params["indirect"]["dist"] == "gamma":
+            shape = baseline_params["indirect"]["shape"]
+            scale = baseline_params["indirect"]["scale"]
+            indirect_sampler = lambda n: np.random.gamma(shape, scale, n)
+        elif baseline_params["indirect"]["dist"] == "normal":
+            mean = baseline_params["indirect"]["mean"]
+            std = baseline_params["indirect"]["std"]
+            indirect_sampler = lambda n: np.random.normal(mean, std, n)
+        else:
+            # Generic fallback
+            mean = baseline_params["indirect"].get("mean", 10.0)
+            indirect_sampler = lambda n: np.full(n, mean)
+
     # FX volatility
     try:
         fx_sampler = estimate_fx_posterior(country)
@@ -159,9 +199,9 @@ def build_samplers_for_country(country: str, baseline_params: Dict) -> CountrySa
         raw_material=raw_sampler,
         labor=labor_sampler,
         logistics=logistics_sampler,
+        indirect=indirect_sampler,
         fx_multiplier=fx_sampler,
         yield_rate=yield_sampler,
-        # indirect_cost=sample_from_spec(baseline_params["indirect"])
         # electricity_cost=sample_from_spec(baseline_params["electricity"]),
         # depreciation_cost=sample_from_spec(baseline_params["depcreciation"]),
         # working_capital=sample_from_spec(baseline_params["working_capital"]),

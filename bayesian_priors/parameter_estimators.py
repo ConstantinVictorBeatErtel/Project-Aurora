@@ -223,3 +223,54 @@ def estimate_logistics_posterior(
     series_normalized = (series / series.mean()) * baseline_per_lamp
     return fit_normal_posterior(series_normalized, prior_mean=baseline_per_lamp)
 
+
+def estimate_indirect_posterior(country: str, baseline_per_lamp: float) -> NormalPosterior:
+    """
+    Fit a Normal–Inverse-Gamma posterior for indirect/overhead cost per lamp.
+    
+    Strategy:
+      - US: FRED Employment Cost Index for office/admin (tracks overhead wage pressure)
+      - Mexico/China: World Bank CPI (widely used overhead inflator)
+      - Normalize to baseline_per_lamp so units become $/lamp
+      - Fit N-IG posterior → Student-t predictive at sample time
+      
+    Args:
+        country: "US", "Mexico", or "China"
+        baseline_per_lamp: Expected indirect cost per lamp in USD
+    """
+    from .data_fetching import fetch_worldbank_indicator
+    
+    series = None
+    
+    if country == "US":
+        # FRED Employment Cost Index: Private Industry, Office & Administrative Support
+        # ECIOCC52 (quarterly; stable long history)
+        # Good proxy for back-office overhead wage pressure
+        s = fetch_fred_series("ECIOCC52", months=48)
+        series = s
+        if len(s) > 0:
+            print(f"  → Using ECI office/admin for US indirect costs")
+    else:
+        # World Bank CPI (All items, 2010=100) FP.CPI.TOTL
+        # Annual, but perfectly serviceable for conservative overhead inflator
+        # Student-t predictive will reflect small-n uncertainty
+        country_code = {"Mexico": "MEX", "China": "CHN"}.get(country, "USA")
+        s = fetch_worldbank_indicator(country_code, "FP.CPI.TOTL", years=15)
+        series = s
+        if len(s) > 0:
+            print(f"  → Using World Bank CPI for {country} indirect costs")
+    
+    if series is None or len(series) < 2:
+        # Fallback: weakly-informative posterior centered at baseline
+        print(f"⚠️  Indirect posterior fallback for {country}; using weak N-IG prior at ${baseline_per_lamp:.2f}")
+        return NormalPosterior(
+            mu=baseline_per_lamp,
+            kappa=10.0,                # moderate confidence in mean
+            alpha=8.0,                 # df = 16
+            beta=(baseline_per_lamp * 0.10) ** 2 * 8.0,  # ~10% coeffvar
+        )
+    
+    # Normalize to $/lamp baseline (same approach as raw/labor/logistics)
+    series_normalized = (series / series.mean()) * baseline_per_lamp
+    return fit_normal_posterior(series_normalized, prior_mean=baseline_per_lamp)
+

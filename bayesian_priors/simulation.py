@@ -30,23 +30,34 @@ def simulate_with_bayesian_priors(
     raw = samplers.raw_material(n_runs)
     labor = samplers.labor(n_runs)
     logistics = samplers.logistics(n_runs)
+    indirect = samplers.indirect(n_runs)
     fx_mult = samplers.fx_multiplier(n_runs)
     yield_rate = samplers.yield_rate(n_runs)
 
-    # Constants (no public data)
-    indirect = samplers.indirect_cost
-    electricity = samplers.electricity_cost
-    depreciation = samplers.depreciation_cost
-    working = samplers.working_capital
+    # Constants (no public data yet)
+    # For now, get from risk_params baseline values
+    electricity = risk_params.get("electricity", {}).get("mean", 4.0)
+    depreciation = risk_params.get("depreciation", {}).get("mean", 5.0)
+    working = risk_params.get("working_capital", {}).get("mean", 5.0)
 
     # Calculate base cost
     base = raw + labor + indirect + logistics + electricity + depreciation + working
     base = base * fx_mult  # Apply FX volatility
 
     # Apply yield and tariff
-    tariff = risk_params["tariff"]["fixed"] + np.random.normal(
-        risk_params["tariff_escal"]["mean"], risk_params["tariff_escal"]["std"], n_runs
-    )
+    base_tariff = risk_params["tariff"]["fixed"]
+    
+    # Handle tariff escalation (can be {"fixed": 0} or {"mean": x, "std": y})
+    if "fixed" in risk_params["tariff_escal"]:
+        tariff_escal = risk_params["tariff_escal"]["fixed"]
+    else:
+        tariff_escal = np.random.normal(
+            risk_params["tariff_escal"]["mean"], 
+            risk_params["tariff_escal"]["std"], 
+            n_runs
+        )
+    
+    tariff = base_tariff + tariff_escal
     total = base / yield_rate + tariff
 
     # Add discrete risks (same as original)
