@@ -23,6 +23,7 @@ from .parameter_estimators import (
     estimate_labor_posterior,
     estimate_logistics_posterior,
     estimate_indirect_posterior,
+    estimate_electricity_posterior,
 )
 
 
@@ -37,11 +38,11 @@ class CountrySamplers:
     labor: Callable[[int], np.ndarray]
     logistics: Callable[[int], np.ndarray]
     indirect: Callable[[int], np.ndarray]
+    electricity: Callable[[int], np.ndarray]
     fx_multiplier: Callable[[int], np.ndarray]
     yield_rate: Callable[[int], np.ndarray]
 
     # Keep other params as constants (no good public data)
-    # electricity_cost: float
     # depreciation_cost: float
     # working_capital: float
 
@@ -162,6 +163,39 @@ def build_samplers_for_country(country: str, baseline_params: Dict) -> CountrySa
             mean = baseline_params["indirect"].get("mean", 10.0)
             indirect_sampler = lambda n: np.full(n, mean)
 
+    # Electricity (now using posterior from energy price data)
+    try:
+        # Get baseline electricity cost (handle different formats)
+        if isinstance(baseline_params["electricity"], dict):
+            baseline_electricity = baseline_params["electricity"].get("mean", 4.0)
+        else:
+            baseline_electricity = baseline_params["electricity"]
+        
+        electricity_post = estimate_electricity_posterior(country, baseline_electricity)
+        
+        def electricity_sampler(n):
+            return electricity_post.sample_predictive(n)
+        
+        print(f"  ✓ Electricity: Student-t predictive from energy price data")
+    except Exception as e:
+        # Robust fallback to baseline parameters
+        print(f"  ⚠️  Electricity posterior failed for {country}: {e}. Using baseline.")
+        if isinstance(baseline_params["electricity"], dict):
+            if baseline_params["electricity"].get("dist") == "gamma":
+                shape = baseline_params["electricity"]["shape"]
+                scale = baseline_params["electricity"]["scale"]
+                electricity_sampler = lambda n: np.random.gamma(shape, scale, n)
+            elif baseline_params["electricity"].get("dist") == "normal":
+                mean = baseline_params["electricity"]["mean"]
+                std = baseline_params["electricity"].get("std", 0.4)
+                electricity_sampler = lambda n: np.random.normal(mean, std, n)
+            else:
+                # Use mean as constant
+                mean = baseline_params["electricity"].get("mean", 4.0)
+                electricity_sampler = lambda n: np.full(n, mean)
+        else:
+            electricity_sampler = lambda n: np.full(n, baseline_params["electricity"])
+
     # FX volatility
     try:
         fx_sampler = estimate_fx_posterior(country)
@@ -200,9 +234,9 @@ def build_samplers_for_country(country: str, baseline_params: Dict) -> CountrySa
         labor=labor_sampler,
         logistics=logistics_sampler,
         indirect=indirect_sampler,
+        electricity=electricity_sampler,
         fx_multiplier=fx_sampler,
         yield_rate=yield_sampler,
-        # electricity_cost=sample_from_spec(baseline_params["electricity"]),
         # depreciation_cost=sample_from_spec(baseline_params["depcreciation"]),
         # working_capital=sample_from_spec(baseline_params["working_capital"]),
     )

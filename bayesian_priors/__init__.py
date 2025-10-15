@@ -25,7 +25,7 @@ VARIABLES WE ARE DOING THIS FOR (with real data):
 - [x] fx (FRED exchange rates → Student-t samples)
 - [x] yield (uncertainty-adjusted Beta)
 - [x] indirect (ECI for US, World Bank CPI for Mexico/China → Student-t samples)
-- [ ] electricity
+- [x] electricity (US: $/kWh, Mexico/China: CPI energy → Student-t samples)
 - [ ] depreciation
 - [ ] working capital
 

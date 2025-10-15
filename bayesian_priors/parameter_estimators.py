@@ -274,3 +274,59 @@ def estimate_indirect_posterior(country: str, baseline_per_lamp: float) -> Norma
     series_normalized = (series / series.mean()) * baseline_per_lamp
     return fit_normal_posterior(series_normalized, prior_mean=baseline_per_lamp)
 
+
+def estimate_electricity_posterior(country: str, baseline_per_lamp: float) -> NormalPosterior:
+    """
+    Fit a Normal–Inverse-Gamma posterior for electricity cost per lamp.
+    
+    Strategy:
+      - US: FRED Average Price: Electricity ($/kWh) - direct price signal
+      - Mexico: FRED/OECD CPI: Energy for Mexico - solid energy price inflator
+      - China: FRED/OECD CPI: Energy for China - quarterly energy price index
+      - Normalize to baseline_per_lamp so units become $/lamp
+      - Fit N-IG posterior → Student-t predictive at sample time
+      
+    Args:
+        country: "US", "Mexico", or "China"
+        baseline_per_lamp: Expected electricity cost per lamp in USD
+    """
+    series = None
+    
+    if country == "US":
+        # FRED Average Price: Electricity (U.S. city average, $/kWh)
+        # APU000072610 (monthly)
+        # Direct price signal per kWh
+        s = fetch_fred_series("APU000072610", months=48)
+        series = s
+        if len(s) > 0:
+            print(f"  → Using electricity $/kWh for US")
+    elif country == "Mexico":
+        # FRED/OECD CPI: Energy for Mexico (quarterly)
+        # CPGRLE01MXQ661N
+        # Solid energy-price inflator when direct kWh prices aren't available
+        s = fetch_fred_series("CPGRLE01MXQ661N", months=48)
+        series = s
+        if len(s) > 0:
+            print(f"  → Using CPI energy index for Mexico")
+    else:  # China
+        # FRED/OECD CPI: Energy for China (quarterly)
+        # CPGRLE01CNQ661N
+        s = fetch_fred_series("CPGRLE01CNQ661N", months=48)
+        series = s
+        if len(s) > 0:
+            print(f"  → Using CPI energy index for China")
+    
+    if series is None or len(series) < 2:
+        # Fallback: weakly-informative posterior centered at baseline
+        print(f"⚠️  Electricity posterior fallback for {country}; using weak N-IG prior at ${baseline_per_lamp:.2f}")
+        return NormalPosterior(
+            mu=baseline_per_lamp,
+            kappa=10.0,                # moderate confidence in mean
+            alpha=8.0,                 # df = 16
+            beta=(baseline_per_lamp * 0.10) ** 2 * 8.0,  # ~10% coeffvar
+        )
+    
+    # Normalize to $/lamp baseline (scale by mean, same as raw/labor/logistics/indirect)
+    series_normalized = (series / series.mean()) * baseline_per_lamp
+    return fit_normal_posterior(series_normalized, prior_mean=baseline_per_lamp)
+
