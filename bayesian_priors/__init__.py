@@ -27,7 +27,7 @@ VARIABLES WE ARE DOING THIS FOR (with real data):
 - [x] indirect (ECI for US, World Bank CPI for Mexico/China → Student-t samples)
 - [x] electricity (US: $/kWh, Mexico/China: CPI energy → Student-t samples)
 - [x] depreciation (US: Machinery PPI, Mexico/China: WB investment price level → Student-t samples)
-- [ ] working capital
+- [x] working capital (US: Fed Funds, Mexico: WB lending rate, China: 3-month interbank → Student-t samples)
 
 USAGE:
     from bayesian_priors import create_bayesian_simulator

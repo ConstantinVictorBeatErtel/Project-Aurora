@@ -381,3 +381,75 @@ def estimate_depreciation_posterior(country: str, baseline_per_lamp: float) -> N
     series_normalized = (series / series.mean()) * baseline_per_lamp
     return fit_normal_posterior(series_normalized, prior_mean=baseline_per_lamp)
 
+
+def estimate_working_capital_posterior(country: str, baseline_per_lamp: float) -> NormalPosterior:
+    """
+    Fit a Normal–Inverse-Gamma posterior for working capital cost per lamp.
+    
+    Strategy:
+      - US: FRED Fed Funds Rate - cost of carrying inventory (short-term rate)
+      - Mexico: World Bank Lending Interest Rate - annual lending rate
+      - China: FRED 3-Month Interbank Rate - OECD short-term rate
+      - Convert interest rates to multiplier on baseline working capital $/lamp
+      - Fit N-IG posterior → Student-t predictive at sample time
+      
+    Args:
+        country: "US", "Mexico", or "China"
+        baseline_per_lamp: Expected working capital cost per lamp in USD
+    """
+    from .data_fetching import fetch_worldbank_indicator
+    
+    series = None
+    
+    if country == "US":
+        # FRED Fed Funds Rate (monthly)
+        # FEDFUNDS
+        # Policy rate that drives cost of short-term financing
+        s = fetch_fred_series("FEDFUNDS", months=24)
+        series = s
+        if len(s) > 0:
+            print(f"  → Using Fed Funds rate for US working capital")
+    elif country == "Mexico":
+        # World Bank Lending Interest Rate (annual)
+        # FR.INR.LEND
+        # Standard proxy for cost of business financing
+        s = fetch_worldbank_indicator("MEX", "FR.INR.LEND", years=15)
+        series = s
+        if len(s) > 0:
+            print(f"  → Using World Bank lending rate for Mexico working capital")
+    else:  # China
+        # FRED 3-Month Interbank Rate (OECD) (monthly)
+        # IR3TIB01CNM156N
+        # Clean short-term rate proxy for working-capital cost
+        s = fetch_fred_series("IR3TIB01CNM156N", months=60)
+        series = s
+        if len(s) > 0:
+            print(f"  → Using 3-month interbank rate for China working capital")
+    
+    if series is None or len(series) < 2:
+        # Fallback: weakly-informative posterior centered at baseline
+        print(f"⚠️  Working capital posterior fallback for {country}; using weak N-IG prior at ${baseline_per_lamp:.2f}")
+        return NormalPosterior(
+            mu=baseline_per_lamp,
+            kappa=8.0,                 # moderate confidence
+            alpha=6.0,                 # df = 12
+            beta=(baseline_per_lamp * 0.10) ** 2 * 6.0,  # ~10% coeffvar
+        )
+    
+    # Drop NaN values that may exist in rate series
+    series = series.dropna()
+    
+    if len(series) < 2:
+        print(f"⚠️  Working capital posterior fallback for {country}; insufficient data after dropna")
+        return NormalPosterior(
+            mu=baseline_per_lamp,
+            kappa=8.0,
+            alpha=6.0,
+            beta=(baseline_per_lamp * 0.10) ** 2 * 6.0,
+        )
+    
+    # Use rate-as-multiplier on baseline WC dollars
+    # Normalize rates to their mean, then scale to baseline cost
+    series_normalized = (series / series.mean()) * baseline_per_lamp
+    return fit_normal_posterior(series_normalized, prior_mean=baseline_per_lamp)
+

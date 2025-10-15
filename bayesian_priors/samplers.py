@@ -25,6 +25,7 @@ from .parameter_estimators import (
     estimate_indirect_posterior,
     estimate_electricity_posterior,
     estimate_depreciation_posterior,
+    estimate_working_capital_posterior,
 )
 
 
@@ -41,11 +42,9 @@ class CountrySamplers:
     indirect: Callable[[int], np.ndarray]
     electricity: Callable[[int], np.ndarray]
     depreciation: Callable[[int], np.ndarray]
+    working_capital: Callable[[int], np.ndarray]
     fx_multiplier: Callable[[int], np.ndarray]
     yield_rate: Callable[[int], np.ndarray]
-
-    # Keep other params as constants (no good public data)
-    # working_capital: float
 
 
 def build_samplers_for_country(country: str, baseline_params: Dict) -> CountrySamplers:
@@ -230,6 +229,39 @@ def build_samplers_for_country(country: str, baseline_params: Dict) -> CountrySa
         else:
             depreciation_sampler = lambda n: np.full(n, baseline_params["depreciation"])
 
+    # Working Capital (now using posterior from interest rate data)
+    try:
+        # Get baseline working capital cost (handle different formats)
+        if isinstance(baseline_params["working_capital"], dict):
+            baseline_working_capital = baseline_params["working_capital"].get("mean", 5.0)
+        else:
+            baseline_working_capital = baseline_params["working_capital"]
+        
+        working_capital_post = estimate_working_capital_posterior(country, baseline_working_capital)
+        
+        def working_capital_sampler(n):
+            return working_capital_post.sample_predictive(n)
+        
+        print(f"  ✓ Working Capital: Student-t predictive from interest rate data")
+    except Exception as e:
+        # Robust fallback to baseline parameters
+        print(f"  ⚠️  Working capital posterior failed for {country}: {e}. Using baseline.")
+        if isinstance(baseline_params["working_capital"], dict):
+            if baseline_params["working_capital"].get("dist") == "gamma":
+                shape = baseline_params["working_capital"]["shape"]
+                scale = baseline_params["working_capital"]["scale"]
+                working_capital_sampler = lambda n: np.random.gamma(shape, scale, n)
+            elif baseline_params["working_capital"].get("dist") == "normal":
+                mean = baseline_params["working_capital"]["mean"]
+                std = baseline_params["working_capital"].get("std", 0.5)
+                working_capital_sampler = lambda n: np.random.normal(mean, std, n)
+            else:
+                # Use mean as constant
+                mean = baseline_params["working_capital"].get("mean", 5.0)
+                working_capital_sampler = lambda n: np.full(n, mean)
+        else:
+            working_capital_sampler = lambda n: np.full(n, baseline_params["working_capital"])
+
     # FX volatility
     try:
         fx_sampler = estimate_fx_posterior(country)
@@ -270,7 +302,7 @@ def build_samplers_for_country(country: str, baseline_params: Dict) -> CountrySa
         indirect=indirect_sampler,
         electricity=electricity_sampler,
         depreciation=depreciation_sampler,
+        working_capital=working_capital_sampler,
         fx_multiplier=fx_sampler,
         yield_rate=yield_sampler,
-        # working_capital=sample_from_spec(baseline_params["working_capital"]),
     )
