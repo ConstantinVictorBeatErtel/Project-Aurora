@@ -163,3 +163,63 @@ def estimate_labor_posterior(country: str, baseline_per_lamp: float) -> NormalPo
     series_normalized = (series / series.mean()) * baseline_per_lamp
     return fit_normal_posterior(series_normalized, prior_mean=baseline_per_lamp)
 
+
+def estimate_logistics_posterior(
+    country: str, baseline_per_lamp: float, mode: str = "truck"
+) -> NormalPosterior:
+    """
+    Fit a Normal–Inverse-Gamma posterior for logistics cost per lamp.
+    
+    Strategy:
+      - Fetch freight/transport price index for the country/mode
+      - Normalize to baseline_per_lamp so units become $/lamp
+      - Fit N-IG posterior → Student-t predictive at sample time
+      
+    Args:
+        country: "US", "Mexico", or "China"
+        baseline_per_lamp: Expected logistics cost per lamp in USD
+        mode: "truck" (US/Mexico), "ocean" (China), or "air" (China)
+    """
+    series = None
+    
+    if country in ("US", "Mexico"):
+        # FRED PPI: General Freight Trucking, Long-Distance, Truckload
+        # PCU4841214841212 (monthly)
+        # Used for both US domestic and Mexico cross-border (priced off NA market)
+        s = fetch_fred_series("PCU4841214841212", months=24)
+        series = s
+        if len(s) > 0:
+            print(f"  → Using US long-distance trucking PPI for {country}")
+    
+    elif country == "China":
+        if mode == "ocean":
+            # FRED PPI: Deep-sea Freight Transportation PCU483111483111 (monthly)
+            s = fetch_fred_series("PCU483111483111", months=24)
+            series = s
+            if len(s) > 0:
+                print("  → Using deep-sea freight PPI for China")
+        elif mode == "air":
+            # FRED Inbound Price Index: Air Freight for Asia IC1312 (monthly)
+            s = fetch_fred_series("IC1312", months=24)
+            series = s
+            if len(s) > 0:
+                print("  → Using air freight index for China")
+        else:
+            # Default to ocean for China
+            s = fetch_fred_series("PCU483111483111", months=24)
+            series = s
+    
+    if series is None or len(series) < 2:
+        # Fallback: weakly-informative posterior centered at baseline
+        print(f"⚠️  Logistics posterior fallback for {country}; using weak N-IG prior at ${baseline_per_lamp:.2f}")
+        return NormalPosterior(
+            mu=baseline_per_lamp,
+            kappa=20.0,                # moderate confidence in mean
+            alpha=10.0,                # df = 20
+            beta=(baseline_per_lamp * 0.15) ** 2 * 10.0,  # ~15% coeffvar (logistics is volatile)
+        )
+    
+    # Normalize to $/lamp baseline (same approach as raw/labor)
+    series_normalized = (series / series.mean()) * baseline_per_lamp
+    return fit_normal_posterior(series_normalized, prior_mean=baseline_per_lamp)
+

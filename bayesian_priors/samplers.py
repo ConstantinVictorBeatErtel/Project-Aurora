@@ -21,6 +21,7 @@ from .parameter_estimators import (
     estimate_raw_material_posterior,
     estimate_yield_posterior,
     estimate_labor_posterior,
+    estimate_logistics_posterior,
 )
 
 
@@ -84,19 +85,42 @@ def build_samplers_for_country(country: str, baseline_params: Dict) -> CountrySa
         sigma_log = baseline_params["labor"]["std"]
         labor_sampler = lambda n: np.random.lognormal(mu_log, sigma_log, n)
 
-    # Logistics (special handling for China lognormal)
-    if baseline_params["logistics"]["dist"] == "lognormal":
-        log_mean = baseline_params["logistics"]["mean"]
-        log_std = baseline_params["logistics"]["std"]
-        sigma = np.sqrt(np.log(1 + (log_std**2 / log_mean**2)))
-        mu = np.log(log_mean) - (sigma**2 / 2)
-        logistics_sampler = lambda n: np.random.lognormal(mu, sigma, n)
-        print("  → Logistics: Lognormal (high volatility from case study)")
-    else:
-        log_mean = baseline_params["logistics"]["mean"]
-        log_std = baseline_params["logistics"]["std"]
-        logistics_sampler = lambda n: np.random.normal(log_mean, log_std, n)
-        print(f"  → Logistics: Normal({log_mean}, {log_std})")
+    # Logistics (now using posterior from freight/transport data)
+    try:
+        # Determine transport mode based on country
+        mode = "truck" if country in ("US", "Mexico") else "ocean"
+        
+        # Get baseline logistics cost (handle both dict formats)
+        if isinstance(baseline_params["logistics"], dict):
+            if baseline_params["logistics"].get("dist") == "lognormal":
+                # For lognormal, compute arithmetic mean from parameters
+                log_mean = baseline_params["logistics"]["mean"]
+                log_std = baseline_params["logistics"]["std"]
+                baseline_logistics = log_mean  # Use mean directly as baseline
+            else:
+                baseline_logistics = baseline_params["logistics"]["mean"]
+        else:
+            baseline_logistics = baseline_params["logistics"]
+        
+        logistics_post = estimate_logistics_posterior(country, baseline_logistics, mode=mode)
+        
+        def logistics_sampler(n):
+            return logistics_post.sample_predictive(n)
+        
+        print(f"  ✓ Logistics: Student-t predictive from {mode} freight data")
+    except Exception as e:
+        # Robust fallback to baseline parameters
+        print(f"  ⚠️  Logistics posterior failed for {country}: {e}. Using baseline.")
+        if baseline_params["logistics"]["dist"] == "lognormal":
+            log_mean = baseline_params["logistics"]["mean"]
+            log_std = baseline_params["logistics"]["std"]
+            sigma = np.sqrt(np.log(1 + (log_std**2 / log_mean**2)))
+            mu = np.log(log_mean) - (sigma**2 / 2)
+            logistics_sampler = lambda n: np.random.lognormal(mu, sigma, n)
+        else:
+            log_mean = baseline_params["logistics"]["mean"]
+            log_std = baseline_params["logistics"]["std"]
+            logistics_sampler = lambda n: np.random.normal(log_mean, log_std, n)
 
     # FX volatility
     try:
