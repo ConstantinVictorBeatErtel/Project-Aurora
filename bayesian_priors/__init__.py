@@ -20,7 +20,7 @@ WHAT THIS DOES:
 
 VARIABLES WE ARE DOING THIS FOR (with real data):
 - [x] raw material (PPI data → Student-t samples)
-- [ ] labor 
+- [x] labor 
 - [ ] logistics
 - [x] fx (FRED exchange rates → Student-t samples)
 - [x] yield (uncertainty-adjusted Beta)
