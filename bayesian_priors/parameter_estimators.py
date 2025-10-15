@@ -243,10 +243,10 @@ def estimate_indirect_posterior(country: str, baseline_per_lamp: float) -> Norma
     series = None
     
     if country == "US":
-        # FRED Employment Cost Index: Private Industry, Office & Administrative Support
-        # ECIOCC52 (quarterly; stable long history)
+        # FRED Employment Cost Index: Total compensation for Office & Administrative Support
+        # CIU2010000220000I (quarterly; stable long history)
         # Good proxy for back-office overhead wage pressure
-        s = fetch_fred_series("ECIOCC52", months=48)
+        s = fetch_fred_series("CIU2010000220000I", months=48)
         series = s
         if len(s) > 0:
             print(f"  → Using ECI office/admin for US indirect costs")
@@ -301,20 +301,31 @@ def estimate_electricity_posterior(country: str, baseline_per_lamp: float) -> No
         if len(s) > 0:
             print(f"  → Using electricity $/kWh for US")
     elif country == "Mexico":
-        # FRED/OECD CPI: Energy for Mexico (quarterly)
-        # CPGRLE01MXQ661N
+        # FRED/OECD MEI: Consumer Price Index: Energy for Mexico (monthly)
+        # MEXCPIENGMINMEI
         # Solid energy-price inflator when direct kWh prices aren't available
-        s = fetch_fred_series("CPGRLE01MXQ661N", months=48)
+        s = fetch_fred_series("MEXCPIENGMINMEI", months=36)
         series = s
         if len(s) > 0:
             print(f"  → Using CPI energy index for Mexico")
     else:  # China
-        # FRED/OECD CPI: Energy for China (quarterly)
-        # CPGRLE01CNQ661N
-        s = fetch_fred_series("CPGRLE01CNQ661N", months=48)
-        series = s
-        if len(s) > 0:
-            print(f"  → Using CPI energy index for China")
+        # China energy proxy: blend global energy index + China CPI
+        # PNRGINDEXM (Global Energy Price Index) + CHNCPIALLMINMEI (China CPI All)
+        global_energy = fetch_fred_series("PNRGINDEXM", months=36)
+        cn_cpi_all = fetch_fred_series("CHNCPIALLMINMEI", months=36)
+        
+        if len(global_energy) > 0 and len(cn_cpi_all) > 0:
+            # Blend: 70% global energy + 30% China CPI (both normalized)
+            cn_energy_proxy = (0.7 * (global_energy / global_energy.mean()) + 
+                              0.3 * (cn_cpi_all / cn_cpi_all.mean()))
+            series = cn_energy_proxy
+            print(f"  → Using blended energy proxy for China (global + CPI)")
+        elif len(cn_cpi_all) > 0:
+            # Fallback to China CPI only
+            series = cn_cpi_all
+            print(f"  → Using China CPI only for China energy (fallback)")
+        else:
+            series = None
     
     if series is None or len(series) < 2:
         # Fallback: weakly-informative posterior centered at baseline
@@ -358,14 +369,14 @@ def estimate_depreciation_posterior(country: str, baseline_per_lamp: float) -> N
         if len(s) > 0:
             print(f"  → Using machinery & equipment PPI for US depreciation")
     else:
-        # World Bank: Price level of investment, PPP (GDP=1) - annual
-        # PL.ITM.PLI
-        # Captures relative capital-goods price levels
+        # World Bank: Price level ratio of PPP conversion factor (GDP) to market exchange rate
+        # PA.NUS.PPPC.RF (annual)
+        # Officially recommended PLI from ICP/WDI; GDP-wide but defensible capex price-level scaler
         country_code = {"Mexico": "MEX", "China": "CHN"}.get(country, "USA")
-        s = fetch_worldbank_indicator(country_code, "PL.ITM.PLI", years=15)
+        s = fetch_worldbank_indicator(country_code, "PA.NUS.PPPC.RF", years=20)
         series = s
         if len(s) > 0:
-            print(f"  → Using World Bank investment price level for {country} depreciation")
+            print(f"  → Using World Bank price level ratio (GDP PLI) for {country} depreciation")
     
     if series is None or len(series) < 2:
         # Fallback: weakly-informative posterior centered at baseline

@@ -94,11 +94,11 @@ class TestFREDAPIStatus:
             print(f"✅ FRED China FX Rate: {len(series)} data points retrieved")
     
     def test_us_indirect_eci_office(self):
-        """Test US Employment Cost Index Office/Admin - ECIOCC52"""
-        series = fetch_fred_series("ECIOCC52", months=48)
+        """Test US Employment Cost Index Office/Admin - CIU2010000220000I"""
+        series = fetch_fred_series("CIU2010000220000I", months=48)
         
         if len(series) < 2:
-            pytest.fail("❌ FRED API FAILURE: US ECI Office/Admin (ECIOCC52) not available")
+            pytest.fail("❌ FRED API FAILURE: US ECI Office/Admin (CIU2010000220000I) not available")
         else:
             print(f"✅ FRED US ECI Office/Admin: {len(series)} data points retrieved")
     
@@ -112,22 +112,28 @@ class TestFREDAPIStatus:
             print(f"✅ FRED US Electricity Price: {len(series)} data points retrieved")
     
     def test_mexico_electricity_cpi_energy(self):
-        """Test Mexico CPI Energy - CPGRLE01MXQ661N"""
-        series = fetch_fred_series("CPGRLE01MXQ661N", months=48)
+        """Test Mexico CPI Energy - MEXCPIENGMINMEI"""
+        series = fetch_fred_series("MEXCPIENGMINMEI", months=36)
         
         if len(series) < 2:
-            pytest.fail("❌ FRED API FAILURE: Mexico CPI Energy (CPGRLE01MXQ661N) not available")
+            pytest.fail("❌ FRED API FAILURE: Mexico CPI Energy (MEXCPIENGMINMEI) not available")
         else:
             print(f"✅ FRED Mexico CPI Energy: {len(series)} data points retrieved")
     
     def test_china_electricity_cpi_energy(self):
-        """Test China CPI Energy - CPGRLE01CNQ661N"""
-        series = fetch_fred_series("CPGRLE01CNQ661N", months=48)
+        """Test China Energy Proxy (blended) - PNRGINDEXM + CHNCPIALLMINMEI"""
+        # Test both components of the blend
+        global_energy = fetch_fred_series("PNRGINDEXM", months=36)
+        cn_cpi_all = fetch_fred_series("CHNCPIALLMINMEI", months=36)
         
-        if len(series) < 2:
-            pytest.fail("❌ FRED API FAILURE: China CPI Energy (CPGRLE01CNQ661N) not available")
+        if len(global_energy) < 2 and len(cn_cpi_all) < 2:
+            pytest.fail("❌ FRED API FAILURE: China Energy Proxy (both PNRGINDEXM and CHNCPIALLMINMEI) not available")
+        elif len(global_energy) < 2:
+            pytest.fail("❌ FRED API FAILURE: Global Energy Index (PNRGINDEXM) not available")
+        elif len(cn_cpi_all) < 2:
+            pytest.fail("❌ FRED API FAILURE: China CPI (CHNCPIALLMINMEI) not available")
         else:
-            print(f"✅ FRED China CPI Energy: {len(series)} data points retrieved")
+            print(f"✅ FRED China Energy Proxy: {len(global_energy)} global energy + {len(cn_cpi_all)} China CPI points")
     
     def test_us_depreciation_machinery_ppi(self):
         """Test US Machinery PPI - PCU333999333999"""
@@ -188,22 +194,22 @@ class TestWorldBankAPIStatus:
             print(f"✅ World Bank China CPI: {len(series)} data points retrieved")
     
     def test_mexico_depreciation_investment_price(self):
-        """Test Mexico Investment Price Level - PL.ITM.PLI"""
-        series = fetch_worldbank_indicator("MEX", "PL.ITM.PLI", years=15)
+        """Test Mexico Price Level Ratio (GDP PLI) - PA.NUS.PPPC.RF"""
+        series = fetch_worldbank_indicator("MEX", "PA.NUS.PPPC.RF", years=20)
         
         if len(series) < 2:
-            pytest.fail("❌ WORLD BANK API FAILURE: Mexico Investment Price (PL.ITM.PLI) not available")
+            pytest.fail("❌ WORLD BANK API FAILURE: Mexico Price Level Ratio (PA.NUS.PPPC.RF) not available")
         else:
-            print(f"✅ World Bank Mexico Investment Price: {len(series)} data points retrieved")
+            print(f"✅ World Bank Mexico Price Level Ratio: {len(series)} data points retrieved")
     
     def test_china_depreciation_investment_price(self):
-        """Test China Investment Price Level - PL.ITM.PLI"""
-        series = fetch_worldbank_indicator("CHN", "PL.ITM.PLI", years=15)
+        """Test China Price Level Ratio (GDP PLI) - PA.NUS.PPPC.RF"""
+        series = fetch_worldbank_indicator("CHN", "PA.NUS.PPPC.RF", years=20)
         
         if len(series) < 2:
-            pytest.fail("❌ WORLD BANK API FAILURE: China Investment Price (PL.ITM.PLI) not available")
+            pytest.fail("❌ WORLD BANK API FAILURE: China Price Level Ratio (PA.NUS.PPPC.RF) not available")
         else:
-            print(f"✅ World Bank China Investment Price: {len(series)} data points retrieved")
+            print(f"✅ World Bank China Price Level Ratio: {len(series)} data points retrieved")
     
     def test_mexico_working_capital_lending_rate(self):
         """Test Mexico Lending Rate - FR.INR.LEND"""
@@ -249,10 +255,11 @@ class TestAPIStatusSummary:
             "Logistics (Air Freight)": "IC1312",
             "FX (Mexico Peso)": "DEXMXUS",
             "FX (China Yuan)": "DEXCHUS",
-            "US Indirect (ECI Office)": "ECIOCC52",
+            "US Indirect (ECI Office)": "CIU2010000220000I",
             "US Electricity ($/kWh)": "APU000072610",
-            "Mexico Electricity (CPI Energy)": "CPGRLE01MXQ661N",
-            "China Electricity (CPI Energy)": "CPGRLE01CNQ661N",
+            "Mexico Electricity (CPI Energy)": "MEXCPIENGMINMEI",
+            "China Electricity (Global Energy)": "PNRGINDEXM",
+            "China Electricity (China CPI)": "CHNCPIALLMINMEI",
             "US Depreciation (Machinery PPI)": "PCU333999333999",
             "US Working Capital (Fed Funds)": "FEDFUNDS",
             "China Working Capital (Interbank)": "IR3TIB01CNM156N",
@@ -278,8 +285,8 @@ class TestAPIStatusSummary:
             "China Labor (GDP per capita)": ("CHN", "NY.GDP.PCAP.PP.CD"),
             "Mexico Indirect (CPI)": ("MEX", "FP.CPI.TOTL"),
             "China Indirect (CPI)": ("CHN", "FP.CPI.TOTL"),
-            "Mexico Depreciation (Investment Price)": ("MEX", "PL.ITM.PLI"),
-            "China Depreciation (Investment Price)": ("CHN", "PL.ITM.PLI"),
+            "Mexico Depreciation (Price Level Ratio)": ("MEX", "PA.NUS.PPPC.RF"),
+            "China Depreciation (Price Level Ratio)": ("CHN", "PA.NUS.PPPC.RF"),
             "Mexico Working Capital (Lending Rate)": ("MEX", "FR.INR.LEND"),
         }
         
