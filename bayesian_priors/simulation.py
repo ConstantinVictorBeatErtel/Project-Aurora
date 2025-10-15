@@ -32,12 +32,12 @@ def simulate_with_bayesian_priors(
     logistics = samplers.logistics(n_runs)
     indirect = samplers.indirect(n_runs)
     electricity = samplers.electricity(n_runs)
+    depreciation = samplers.depreciation(n_runs)
     fx_mult = samplers.fx_multiplier(n_runs)
     yield_rate = samplers.yield_rate(n_runs)
 
     # Constants (no public data yet)
     # For now, get from risk_params baseline values
-    depreciation = risk_params.get("depreciation", {}).get("mean", 5.0)
     working = risk_params.get("working_capital", {}).get("mean", 5.0)
 
     # Calculate base cost

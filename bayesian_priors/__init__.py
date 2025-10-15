@@ -26,7 +26,7 @@ VARIABLES WE ARE DOING THIS FOR (with real data):
 - [x] yield (uncertainty-adjusted Beta)
 - [x] indirect (ECI for US, World Bank CPI for Mexico/China → Student-t samples)
 - [x] electricity (US: $/kWh, Mexico/China: CPI energy → Student-t samples)
-- [ ] depreciation
+- [x] depreciation (US: Machinery PPI, Mexico/China: WB investment price level → Student-t samples)
 - [ ] working capital
 
 USAGE:

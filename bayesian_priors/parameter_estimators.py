@@ -330,3 +330,54 @@ def estimate_electricity_posterior(country: str, baseline_per_lamp: float) -> No
     series_normalized = (series / series.mean()) * baseline_per_lamp
     return fit_normal_posterior(series_normalized, prior_mean=baseline_per_lamp)
 
+
+def estimate_depreciation_posterior(country: str, baseline_per_lamp: float) -> NormalPosterior:
+    """
+    Fit a Normal–Inverse-Gamma posterior for depreciation cost per lamp.
+    
+    Strategy:
+      - US: FRED PPI: Industrial Machinery and Equipment - tracks equipment replacement cost
+      - Mexico/China: World Bank Price level of investment, PPP - captures capital goods prices
+      - Normalize to baseline_per_lamp so units become $/lamp
+      - Fit N-IG posterior → Student-t predictive at sample time
+      
+    Args:
+        country: "US", "Mexico", or "China"
+        baseline_per_lamp: Expected depreciation cost per lamp in USD
+    """
+    from .data_fetching import fetch_worldbank_indicator
+    
+    series = None
+    
+    if country == "US":
+        # FRED PPI: Industrial Machinery and Equipment (monthly)
+        # PCU333999333999
+        # Tracks replacement/repair cost of production equipment
+        s = fetch_fred_series("PCU333999333999", months=60)
+        series = s
+        if len(s) > 0:
+            print(f"  → Using machinery & equipment PPI for US depreciation")
+    else:
+        # World Bank: Price level of investment, PPP (GDP=1) - annual
+        # PL.ITM.PLI
+        # Captures relative capital-goods price levels
+        country_code = {"Mexico": "MEX", "China": "CHN"}.get(country, "USA")
+        s = fetch_worldbank_indicator(country_code, "PL.ITM.PLI", years=15)
+        series = s
+        if len(s) > 0:
+            print(f"  → Using World Bank investment price level for {country} depreciation")
+    
+    if series is None or len(series) < 2:
+        # Fallback: weakly-informative posterior centered at baseline
+        print(f"⚠️  Depreciation posterior fallback for {country}; using weak N-IG prior at ${baseline_per_lamp:.2f}")
+        return NormalPosterior(
+            mu=baseline_per_lamp,
+            kappa=20.0,                # higher confidence (depreciation is relatively stable)
+            alpha=10.0,                # df = 20
+            beta=(baseline_per_lamp * 0.05) ** 2 * 10.0,  # ~5% coeffvar (low volatility)
+        )
+    
+    # Normalize to $/lamp baseline (scale by mean, same as all other components)
+    series_normalized = (series / series.mean()) * baseline_per_lamp
+    return fit_normal_posterior(series_normalized, prior_mean=baseline_per_lamp)
+

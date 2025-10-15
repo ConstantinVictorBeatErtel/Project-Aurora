@@ -24,6 +24,7 @@ from .parameter_estimators import (
     estimate_logistics_posterior,
     estimate_indirect_posterior,
     estimate_electricity_posterior,
+    estimate_depreciation_posterior,
 )
 
 
@@ -39,11 +40,11 @@ class CountrySamplers:
     logistics: Callable[[int], np.ndarray]
     indirect: Callable[[int], np.ndarray]
     electricity: Callable[[int], np.ndarray]
+    depreciation: Callable[[int], np.ndarray]
     fx_multiplier: Callable[[int], np.ndarray]
     yield_rate: Callable[[int], np.ndarray]
 
     # Keep other params as constants (no good public data)
-    # depreciation_cost: float
     # working_capital: float
 
 
@@ -196,6 +197,39 @@ def build_samplers_for_country(country: str, baseline_params: Dict) -> CountrySa
         else:
             electricity_sampler = lambda n: np.full(n, baseline_params["electricity"])
 
+    # Depreciation (now using posterior from machinery/capital goods price data)
+    try:
+        # Get baseline depreciation cost (handle different formats)
+        if isinstance(baseline_params["depreciation"], dict):
+            baseline_depreciation = baseline_params["depreciation"].get("mean", 5.0)
+        else:
+            baseline_depreciation = baseline_params["depreciation"]
+        
+        depreciation_post = estimate_depreciation_posterior(country, baseline_depreciation)
+        
+        def depreciation_sampler(n):
+            return depreciation_post.sample_predictive(n)
+        
+        print(f"  ✓ Depreciation: Student-t predictive from machinery/investment price data")
+    except Exception as e:
+        # Robust fallback to baseline parameters
+        print(f"  ⚠️  Depreciation posterior failed for {country}: {e}. Using baseline.")
+        if isinstance(baseline_params["depreciation"], dict):
+            if baseline_params["depreciation"].get("dist") == "gamma":
+                shape = baseline_params["depreciation"]["shape"]
+                scale = baseline_params["depreciation"]["scale"]
+                depreciation_sampler = lambda n: np.random.gamma(shape, scale, n)
+            elif baseline_params["depreciation"].get("dist") == "normal":
+                mean = baseline_params["depreciation"]["mean"]
+                std = baseline_params["depreciation"].get("std", 0.5)
+                depreciation_sampler = lambda n: np.random.normal(mean, std, n)
+            else:
+                # Use mean as constant
+                mean = baseline_params["depreciation"].get("mean", 5.0)
+                depreciation_sampler = lambda n: np.full(n, mean)
+        else:
+            depreciation_sampler = lambda n: np.full(n, baseline_params["depreciation"])
+
     # FX volatility
     try:
         fx_sampler = estimate_fx_posterior(country)
@@ -235,8 +269,8 @@ def build_samplers_for_country(country: str, baseline_params: Dict) -> CountrySa
         logistics=logistics_sampler,
         indirect=indirect_sampler,
         electricity=electricity_sampler,
+        depreciation=depreciation_sampler,
         fx_multiplier=fx_sampler,
         yield_rate=yield_sampler,
-        # depreciation_cost=sample_from_spec(baseline_params["depcreciation"]),
         # working_capital=sample_from_spec(baseline_params["working_capital"]),
     )
