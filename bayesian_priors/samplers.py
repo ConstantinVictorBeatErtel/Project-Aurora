@@ -20,6 +20,7 @@ from .parameter_estimators import (
     estimate_fx_posterior,
     estimate_raw_material_posterior,
     estimate_yield_posterior,
+    estimate_labor_posterior,
 )
 
 
@@ -64,11 +65,24 @@ def build_samplers_for_country(country: str, baseline_params: Dict) -> CountrySa
         def raw_sampler(n):
             return np.random.normal(raw_mean, raw_std, n)
 
-    # Labor (no good public data - use baseline)
-    labor_mean = baseline_params["labor"]["mean"]
-    labor_std = baseline_params["labor"]["std"]
-    labor_sampler = lambda n: np.random.normal(labor_mean, labor_std, n)
-    print(f"  → Labor: Baseline Normal({labor_mean}, {labor_std})")
+    # Labor (now using posterior from real data; fallback = lognormal baseline)
+    try:
+        # baseline_params["labor"] uses lognormal params (mu_log, sigma_log)
+        mu_log = baseline_params["labor"]["mean"]
+        sigma_log = baseline_params["labor"]["std"]
+        baseline_labor_mean = float(np.exp(mu_log + (sigma_log**2) / 2.0))
+        labor_post = estimate_labor_posterior(country, baseline_labor_mean)
+
+        def labor_sampler(n):
+            return labor_post.sample_predictive(n)
+
+        print("  ✓ Labor: Student-t predictive from real series")
+    except Exception as e:
+        # Robust fallback to the *correct* lognormal, not normal
+        print(f"  ⚠️  Labor posterior failed for {country}: {e}. Using baseline lognormal.")
+        mu_log = baseline_params["labor"]["mean"]
+        sigma_log = baseline_params["labor"]["std"]
+        labor_sampler = lambda n: np.random.lognormal(mu_log, sigma_log, n)
 
     # Logistics (special handling for China lognormal)
     if baseline_params["logistics"]["dist"] == "lognormal":

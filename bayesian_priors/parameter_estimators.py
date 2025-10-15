@@ -14,7 +14,10 @@ from typing import Callable
 
 import numpy as np
 
-from .data_fetching import fetch_fred_series
+from .data_fetching import (
+    fetch_fred_series,
+    fetch_china_wages_manufacturing,
+)
 from .posterior_models import (
     BetaPosterior,
     NormalPosterior,
@@ -102,4 +105,61 @@ def estimate_yield_posterior(
     beta = (1 - baseline_yield) * total
 
     return BetaPosterior(alpha, beta)
+
+
+# -----------------------------
+# Labor posterior (US/Mexico/China)
+# -----------------------------
+def _lognormal_mean(mu_log: float, sigma_log: float) -> float:
+    """
+    Convert log-space (mu, sigma) to arithmetic mean of a lognormal.
+      E[X] = exp(mu + sigma^2 / 2)
+    """
+    return float(np.exp(mu_log + (sigma_log**2) / 2.0))
+
+
+def estimate_labor_posterior(country: str, baseline_per_lamp: float) -> NormalPosterior:
+    """
+    Fit a Normal–Inverse-Gamma posterior for labor cost per lamp.
+    Strategy:
+      - Fetch a country-appropriate series (level or index)
+      - Normalize to baseline_per_lamp so units become $/lamp
+      - Fit N-IG posterior → Student-t predictive at sample time
+    """
+    series = None
+
+    if country == "US":
+        # BLS via FRED: CES3000000003 (AHE Manufacturing, USD/hour, monthly)
+        s = fetch_fred_series("CES3000000003", months=24)
+        series = s
+    elif country == "Mexico":
+        # OECD via FRED: LCEAMN01MXM661S (Hourly Earnings Index 2015=100, monthly)
+        s = fetch_fred_series("LCEAMN01MXM661S", months=24)
+        series = s
+    elif country == "China":
+        # TradingEconomics (annual, CNY/year). Keep annual; Student-t handles small n.
+        s = fetch_china_wages_manufacturing()
+        # Keep last ~10 years if available to avoid ancient regimes
+        if len(s) > 0:
+            s = s.iloc[-10:]
+        series = s
+    else:
+        print(f"⚠️  No labor series mapping for {country}")
+        series = None
+
+    if series is None or len(series) < 2:
+        # Fallback: weakly-informative posterior centered at baseline
+        print(f"⚠️  Labor posterior fallback for {country}; using weak N-IG prior at ${baseline_per_lamp:.2f}")
+        return NormalPosterior(
+            mu=baseline_per_lamp,      # center on baseline
+            kappa=20.0,                # weakish confidence in mean
+            alpha=10.0,                # df = 20
+            beta=(baseline_per_lamp * 0.10) ** 2 * 10.0,  # ~10% coeffvar guess
+        )
+
+    # Normalize to $/lamp baseline (same approach as PPI above)
+    # This converts whatever units the series has ($/hour, index, $/year)
+    # into $/lamp by scaling relative to mean
+    series_normalized = (series / series.mean()) * baseline_per_lamp
+    return fit_normal_posterior(series_normalized, prior_mean=baseline_per_lamp)
 
