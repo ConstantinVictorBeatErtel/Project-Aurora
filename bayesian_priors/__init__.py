@@ -43,15 +43,17 @@ from typing import Callable, Dict
 import numpy as np
 
 from .samplers import build_samplers_for_country
-from .simulation import simulate_with_bayesian_priors
 
 # Expose main API functions
-__all__ = ["create_bayesian_simulator"]
+__all__ = ["create_bayesian_simulator", "build_samplers_for_country"]
 
 
 def create_bayesian_simulator(countries_dict: Dict) -> Dict[str, Callable]:
     """
     Create Bayesian simulators for all countries.
+    
+    NOTE: This function is deprecated. Use simulation.run_monte_carlo() directly
+    instead, which provides better architecture and returns both costs and lost units.
 
     Returns:
         Dict mapping country -> simulator function
@@ -64,25 +66,20 @@ def create_bayesian_simulator(countries_dict: Dict) -> Dict[str, Callable]:
         # Use instead of simulate_country()
         us_costs = bayesian_sims['US'](n_runs=10000)
     """
-    simulators = {}
-
     print("\n" + "=" * 60)
     print("BUILDING BAYESIAN POSTERIOR SAMPLERS")
     print("=" * 60)
-
-    for country, params in countries_dict.items():
-        samplers = build_samplers_for_country(country, params)
-
-        # Create closure that captures samplers and params
-        def make_sim(c=country, s=samplers, p=params):
-            return lambda n: simulate_with_bayesian_priors(c, s, p, n)
-
-        simulators[country] = make_sim()
-
-    print("\n✅ All samplers built successfully!")
+    print("⚠️  WARNING: create_bayesian_simulator() is deprecated.")
+    print("    Use simulation.run_monte_carlo() instead for full functionality.")
     print("=" * 60 + "\n")
 
-    return simulators
+    # This function is now deprecated but kept for backwards compatibility
+    # The main simulation.py has the correct implementation
+    raise DeprecationWarning(
+        "create_bayesian_simulator() is deprecated. "
+        "Use simulation.run_monte_carlo() which provides better separation "
+        "of concerns and returns both total costs and lost units."
+    )
 
 
 # ============================================================================

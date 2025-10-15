@@ -11,39 +11,54 @@ from discrete import (
     generate_last_minute_cancellation_risk,
 )
 from structs import DiscreteRisks, DiscreteRisksParams
-from utils import sample_from_spec
 
 
 def factory_costs_with_bayesian_priors(
     samplers: CountrySamplers, risk_params: dict, n_runs: int
 ) -> np.ndarray:
-    """Run Monte Carlo simulation using Bayesian posterior samplers."""
-    # Sample from posterior predictives
+    """
+    Run Monte Carlo simulation using Bayesian posterior samplers.
+    
+    ALL cost components now use Bayesian priors with real data:
+    - raw material (PPI data → Student-t samples)
+    - labor (wage data → Student-t samples)
+    - logistics (CPI transport → Student-t samples)
+    - indirect (ECI/CPI → Student-t samples)
+    - electricity ($/kWh or CPI energy → Student-t samples)
+    - depreciation (Machinery PPI/WB investment → Student-t samples)
+    - working capital (interest rates → Student-t samples)
+    - fx (FRED exchange rates → Student-t samples)
+    - yield (uncertainty-adjusted Beta)
+    """
+    # Sample ALL components from posterior predictives
     raw = samplers.raw_material(n_runs)
     labor = samplers.labor(n_runs)
     logistics = samplers.logistics(n_runs)
+    indirect = samplers.indirect(n_runs)
+    electricity = samplers.electricity(n_runs)
+    depreciation = samplers.depreciation(n_runs)
+    working = samplers.working_capital(n_runs)
     fx_mult = samplers.fx_multiplier(n_runs)
     yield_rate = samplers.yield_rate(n_runs)
-
-    # Constants (no public data)
-    indirect = sample_from_spec(risk_params["indirect"], n_runs)
-    electricity = sample_from_spec(risk_params["electricity"], n_runs)
-    depreciation = sample_from_spec(risk_params["depreciation"], n_runs)
-    working = sample_from_spec(risk_params["working_capital"], n_runs)
 
     # Calculate base cost
     base = raw + labor + indirect + logistics + electricity + depreciation + working
     base = base * fx_mult  # Apply FX volatility
 
     # Apply yield and tariff
-    tariff = risk_params["tariff"]["fixed"]
+    base_tariff = risk_params["tariff"]["fixed"]
+    
+    # Handle tariff escalation (can be {"fixed": 0} or {"mean": x, "std": y})
     if "fixed" in risk_params["tariff_escal"]:
-        tariff += risk_params["tariff_escal"]["fixed"]
-    # TODO: modify
+        tariff_escal = risk_params["tariff_escal"]["fixed"]
     else:
-        tariff += np.random.normal(
-            risk_params["tariff_escal"]["mean"], risk_params["tariff_escal"]["std"]
+        tariff_escal = np.random.normal(
+            risk_params["tariff_escal"]["mean"], 
+            risk_params["tariff_escal"]["std"], 
+            n_runs
         )
+    
+    tariff = base_tariff + tariff_escal
     total = base / yield_rate + tariff
 
     return total
