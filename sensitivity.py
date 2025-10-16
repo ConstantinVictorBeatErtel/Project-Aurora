@@ -28,6 +28,7 @@ def run_sensitivity_analysis(
         for key in param_path:
             base_value = base_value[key]
 
+        # GUARD
         # Skip parameters that are 0 (can't do ±20% of 0)
         if base_value == 0:
             continue
