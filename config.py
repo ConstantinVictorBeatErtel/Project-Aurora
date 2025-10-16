@@ -47,6 +47,19 @@ categorized into:
 
 NOTE: Some variables are estimated by bayesian_priors/samplers.py using
 historical data, replacing the need for modeling assumptions.
+
+## SENSITIVITY FACTORS
+
+The `SENSITIVITY_FACTORS` mapping defines, per country, which parameters are
+varied during one-at-a-time sensitivity analysis. Each item in the mapping is a
+tuple of:
+- a human-readable label shown in charts; and
+- a tuple path used to locate the parameter inside `COUNTRIES` (for example,
+  ("raw", "mean") or ("disruption_lambda",)).
+
+Only the factors listed under each country are perturbed when generating
+impact/tornado charts; all other parameters remain fixed at their baseline
+distributions.
 """
 
 from live_data import get_most_recent_fed_funds_rate
@@ -173,4 +186,90 @@ COUNTRIES = {
         "cancellation_probability": 0.0001,
         "cancellation_days_delayed": 90,
     },
+}
+
+SENSITIVITY_FACTORS = {
+    "US": [
+        ("Raw Material Mean", ("raw", "mean")),
+        # ('Raw Material Std', ('raw', 'std')),
+        ("Labor Mean", ("labor", "mean")),
+        # ('Labor Std', ('labor', 'std')),
+        # ('Indirect Shape', ('indirect', 'shape')),
+        # ('Indirect Scale', ('indirect', 'scale')),
+        # ('Logistics Mean', ('logistics', 'mean')),
+        # ('Depreciation Mean', ('depreciation', 'mean')),
+        # ('Depreciation Std', ('depreciation', 'std')),
+        # ('Working Capital Mean', ('working_capital', 'mean')),
+        # ('Working Capital Std', ('working_capital', 'std')),
+        # ('Manufacturing Yield (a)', ('yield_params', 'a')),
+        # ('Manufacturing Yield (b)', ('yield_params', 'b')),
+        ("Disruption Lambda", ("disruption_lambda",)),
+        # ('Disruption Min Impact', ('disruption_min_impact',)),
+        # ('Disruption Max Impact', ('disruption_max_impact',)),
+        ("Disruption Days Delayed", ("disruption_days_delayed",)),
+        ("Damage Probability", ("damage_probability",)),
+        ("Quality Days Delayed", ("quality_days_delayed",)),
+    ],
+    "Mexico": [
+        ("Raw Material Mean", ("raw", "mean")),
+        # ('Raw Material Std', ('raw', 'std')),
+        ("Labor Mean", ("labor", "mean")),
+        # ('Labor Std', ('labor', 'std')),
+        # ('Indirect Shape', ('indirect', 'shape')),
+        # ('Indirect Scale', ('indirect', 'scale')),
+        # ('Logistics Mean', ('logistics', 'mean')),
+        # ('Logistics Std', ('logistics', 'std')),
+        # ('Depreciation Mean', ('depreciation', 'mean')),
+        # ('Depreciation Std', ('depreciation', 'std')),
+        # ('Working Capital Mean', ('working_capital', 'mean')),
+        # ('Working Capital Std', ('working_capital', 'std')),
+        # ('Manufacturing Yield (a)', ('yield_params', 'a')),
+        # ('Manufacturing Yield (b)', ('yield_params', 'b')),
+        ("Tariff (Fixed)", ("tariff", "fixed")),
+        ("Tariff Escalation", ("tariff_escal",)),
+        ("Currency Volatility", ("currency_std",)),
+        ("Disruption Lambda", ("disruption_lambda",)),
+        # ('Disruption Min Impact', ('disruption_min_impact',)),
+        # ('Disruption Max Impact', ('disruption_max_impact',)),
+        ("Disruption Days Delayed", ("disruption_days_delayed",)),
+        ("Border Delay Lambda", ("border_delay_lambda",)),
+        # ('Border Min Impact', ('border_min_impact',)),
+        # ('Border Max Impact', ('border_max_impact',)),
+        ("Border Days Delayed", ("border_days_delayed",)),
+        ("Damage Probability", ("damage_probability",)),
+        ("Defective Probability", ("defective_probability",)),
+        ("Quality Days Delayed", ("quality_days_delayed",)),
+    ],
+    "China": [
+        ("Raw Material Mean", ("raw", "mean")),
+        # ('Raw Material Std', ('raw', 'std')),
+        ("Labor Mean", ("labor", "mean")),
+        # ('Labor Std', ('labor', 'std')),
+        # ('Indirect Shape', ('indirect', 'shape')),
+        # ('Indirect Scale', ('indirect', 'scale')),
+        # ('Logistics Mean', ('logistics', 'mean')),
+        # ('Logistics Std', ('logistics', 'std')),
+        # ('Depreciation Mean', ('depreciation', 'mean')),
+        # ('Depreciation Std', ('depreciation', 'std')),
+        # ('Working Capital Mean', ('working_capital', 'mean')),
+        # ('Working Capital Std', ('working_capital', 'std')),
+        # ('Manufacturing Yield (a)', ('yield_params', 'a')),
+        # ('Manufacturing Yield (b)', ('yield_params', 'b')),
+        ("Tariff (Fixed)", ("tariff", "fixed")),
+        ("Tariff Escalation", ("tariff_escal",)),
+        ("Currency Volatility", ("currency_std",)),
+        ("Disruption Lambda", ("disruption_lambda",)),
+        # ('Disruption Min Impact', ('disruption_min_impact',)),
+        # ('Disruption Max Impact', ('disruption_max_impact',)),
+        ("Disruption Days Delayed", ("disruption_days_delayed",)),
+        ("Border Delay Lambda", ("border_delay_lambda",)),
+        # ('Border Min Impact', ('border_min_impact',)),
+        # ('Border Max Impact', ('border_max_impact',)),
+        ("Border Days Delayed", ("border_days_delayed",)),
+        ("Damage Probability", ("damage_probability",)),
+        ("Defective Probability", ("defective_probability",)),
+        ("Quality Days Delayed", ("quality_days_delayed",)),
+        ("Cancellation Probability", ("cancellation_probability",)),
+        ("Cancellation Days Delayed", ("cancellation_days_delayed",)),
+    ],
 }

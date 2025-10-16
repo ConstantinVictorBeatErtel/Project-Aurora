@@ -1,5 +1,3 @@
-import copy
-
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -7,8 +5,9 @@ import plotly.graph_objects as go
 import streamlit as st
 from numpy.typing import NDArray
 
-from config import COUNTRIES
+from config import COUNTRIES, SENSITIVITY_FACTORS
 from optimzation import optimize_without_yield
+from sensitivity import run_sensitivity_analysis
 from simulation import run_monte_carlo
 
 # --- Streamlit App ---
@@ -215,71 +214,6 @@ st.write(
     "This chart shows how a +/- 20% change in each input variable affects the expected total cost."
 )
 
-
-def run_sensitivity_analysis(
-    country, base_params, factors_to_test, order_size, swing=0.20
-):
-    """
-    Runs a one-at-a-time sensitivity analysis for a given set of factors.
-    Returns a dataframe with the results and the baseline mean cost.
-    """
-    results = []
-
-    # Calculate baseline mean cost
-    base_results = run_monte_carlo(country, base_params, order_size)
-    baseline_mean = np.mean(base_results["total_cost"])
-
-    for factor_name, param_path in factors_to_test:
-        params_low = copy.deepcopy(base_params)
-        params_high = copy.deepcopy(base_params)
-
-        # Get the base value using the path
-        base_value = base_params
-        for key in param_path:
-            base_value = base_value[key]
-
-        # Skip parameters that are 0 (can't do ±20% of 0)
-        if base_value == 0:
-            continue
-
-        low_value = base_value * (1 - swing)
-        high_value = base_value * (1 + swing)
-
-        # Set the low and high values in the copied params
-        temp_low = params_low
-        temp_high = params_high
-        for i, key in enumerate(param_path):
-            if i == len(param_path) - 1:
-                temp_low[key] = low_value
-                temp_high[key] = high_value
-            else:
-                temp_low = temp_low[key]
-                temp_high = temp_high[key]
-
-        try:
-            # Simulate with low and high values
-            low_results = run_monte_carlo(country, params_low, order_size)
-            high_results = run_monte_carlo(country, params_high, order_size)
-
-            mean_low = np.mean(low_results["total_cost"])
-            mean_high = np.mean(high_results["total_cost"])
-
-            results.append(
-                {
-                    "Factor": factor_name,
-                    "Low Cost": mean_low,
-                    "High Cost": mean_high,
-                    "Impact": mean_high - mean_low,
-                }
-            )
-        except Exception as e:
-            # Skip factors that cause errors (e.g., invalid parameter combinations)
-            st.warning(f"Skipping {factor_name}: {str(e)}")
-            continue
-
-    return pd.DataFrame(results), baseline_mean
-
-
 sa_col1, sa_col2 = st.columns([1, 3])
 
 with sa_col1:
@@ -300,89 +234,8 @@ if run_sa:
     with st.spinner(f"Running sensitivity analysis for {sa_country}..."):
         base_params = COUNTRIES[sa_country]
 
-        # Define factors to test for each country
-        factors = {
-            "US": [
-                ("Raw Material Mean", ("raw", "mean")),
-                # ('Raw Material Std', ('raw', 'std')),
-                ("Labor Mean", ("labor", "mean")),
-                # ('Labor Std', ('labor', 'std')),
-                # ('Indirect Shape', ('indirect', 'shape')),
-                # ('Indirect Scale', ('indirect', 'scale')),
-                # ('Logistics Mean', ('logistics', 'mean')),
-                # ('Depreciation Mean', ('depreciation', 'mean')),
-                # ('Depreciation Std', ('depreciation', 'std')),
-                # ('Working Capital Mean', ('working_capital', 'mean')),
-                # ('Working Capital Std', ('working_capital', 'std')),
-                # ('Manufacturing Yield (a)', ('yield_params', 'a')),
-                # ('Manufacturing Yield (b)', ('yield_params', 'b')),
-                ("Disruption Lambda", ("disruption_lambda",)),
-                # ('Disruption Min Impact', ('disruption_min_impact',)),
-                # ('Disruption Max Impact', ('disruption_max_impact',)),
-                ("Disruption Days Delayed", ("disruption_days_delayed",)),
-                ("Damage Probability", ("damage_probability",)),
-                ("Quality Days Delayed", ("quality_days_delayed",)),
-            ],
-            "Mexico": [
-                ("Raw Material Mean", ("raw", "mean")),
-                # ('Raw Material Std', ('raw', 'std')),
-                ("Labor Mean", ("labor", "mean")),
-                # ('Labor Std', ('labor', 'std')),
-                # ('Indirect Shape', ('indirect', 'shape')),
-                # ('Indirect Scale', ('indirect', 'scale')),
-                # ('Logistics Mean', ('logistics', 'mean')),
-                # ('Logistics Std', ('logistics', 'std')),
-                # ('Depreciation Mean', ('depreciation', 'mean')),
-                # ('Depreciation Std', ('depreciation', 'std')),
-                # ('Working Capital Mean', ('working_capital', 'mean')),
-                # ('Working Capital Std', ('working_capital', 'std')),
-                # ('Manufacturing Yield (a)', ('yield_params', 'a')),
-                # ('Manufacturing Yield (b)', ('yield_params', 'b')),
-                ("Tariff (Fixed)", ("tariff", "fixed")),
-                ("Tariff Escalation", ("tariff_escal",)),
-                ("Currency Volatility", ("currency_std",)),
-                ("Disruption Lambda", ("disruption_lambda",)),
-                # ('Disruption Min Impact', ('disruption_min_impact',)),
-                # ('Disruption Max Impact', ('disruption_max_impact',)),
-                ("Disruption Days Delayed", ("disruption_days_delayed",)),
-                ("Border Delay Lambda", ("border_delay_lambda",)),
-                # ('Border Min Impact', ('border_min_impact',)),
-                # ('Border Max Impact', ('border_max_impact',)),
-                ("Border Days Delayed", ("border_days_delayed",)),
-                ("Damage Probability", ("damage_probability",)),
-                ("Defective Probability", ("defective_probability",)),
-                ("Quality Days Delayed", ("quality_days_delayed",)),
-            ],
-            "China": [
-                ("Raw Material Mean", ("raw", "mean")),
-                # ('Raw Material Std', ('raw', 'std')),
-                ("Labor Mean", ("labor", "mean")),
-                # ('Labor Std', ('labor', 'std')),
-                # ('Indirect Shape', ('indirect', 'shape')),
-                # ('Indirect Scale', ('indirect', 'scale')),
-                # ('Logistics Mean', ('logistics', 'mean')),
-                # ('Logistics Std', ('logistics', 'std')),
-                # ('Depreciation Mean', ('depreciation', 'mean')),
-                # ('Depreciation Std', ('depreciation', 'std')),
-                # ('Working Capital Mean', ('working_capital', 'mean')),
-                # ('Working Capital Std', ('working_capital', 'std')),
-                # ('Manufacturing Yield (a)', ('yield_params', 'a')),
-                # ('Manufacturing Yield (b)', ('yield_params', 'b')),
-                ("Tariff (Fixed)", ("tariff", "fixed")),
-                ("Tariff Escalation", ("tariff_escal",)),
-                ("Currency Volatility", ("currency_std",)),
-                ("Disruption Lambda", ("disruption_lambda",)),
-                # ('Disruption Min Impact', ('disruption_min_impact',)),
-                # ('Disruption Max Impact', ('disruption_max_impact',)),
-                ("Disruption Days Delayed", ("disruption_days_delayed",)),
-                ("Damage Probability", ("damage_probability",)),
-                ("Quality Days Delayed", ("quality_days_delayed",)),
-                ("Cancellation Probability", ("cancellation_probability",)),
-                ("Cancellation Days Delayed", ("cancellation_days_delayed",)),
-            ],
-        }
-
-        factors_to_test = factors[sa_country]
+        # Pull factors to test for each country
+        factors_to_test = SENSITIVITY_FACTORS[sa_country]
         sa_results, baseline_mean = run_sensitivity_analysis(
             sa_country, base_params, factors_to_test, sa_order_size
         )
