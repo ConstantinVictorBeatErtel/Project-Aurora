@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.optimize import minimize
 
+from structs import DiscreteRisksParams
+
 
 def sample_from_spec(spec, n):
     dist = spec.get("dist", "normal").lower()
@@ -167,3 +169,28 @@ def optimize_portfolio(all_costs, yields, lambda_risk, constraints=None):
         }
     else:
         return None
+
+
+def create_params_from_dict(country_dict: dict, order_size: int) -> DiscreteRisksParams:
+    """
+    Reads a dictionary of parameters for a country and creates a
+    structured DiscreteRisksParams object.
+    """
+    print(country_dict)
+    return DiscreteRisksParams(
+        order_size=order_size,
+        disruption_lambda=country_dict["disruption_lambda"],
+        disruption_min=country_dict["disruption_min_impact"],
+        disruption_max=country_dict["disruption_max_impact"],
+        disruption_days_delayed=country_dict["disruption_days_delayed"],
+        border_delay_lambda=country_dict["border_delay_lambda"],
+        border_delay_min=country_dict["border_min_impact"],
+        border_delay_max=country_dict["border_max_impact"],
+        border_delay_days_delayed=country_dict["border_days_delayed"],
+        damage_probability=country_dict["damage_probability"],
+        defective_probability=country_dict["defective_probability"],
+        quality_days_delayed=country_dict["quality_days_delayed"],
+        cancellation_probability=country_dict["cancellation_probability"],
+        cancellation_days_delayed=country_dict["cancellation_days_delayed"],
+        tariff_escalation=country_dict["tariff_escal"],
+    )
