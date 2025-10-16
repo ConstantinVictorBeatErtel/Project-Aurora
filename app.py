@@ -5,10 +5,11 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from numpy.typing import NDArray
 
 from config import COUNTRIES
+from optimzation import optimize_without_yield
 from simulation import run_monte_carlo
-from utils import optimize_without_yield
 
 # --- Streamlit App ---
 st.set_page_config(layout="wide")
@@ -16,20 +17,6 @@ st.title("Tesla Headlamp Supplier Evaluation")
 st.write(
     "Assuming we need to deliver a number of headlamps, what is the optimal procurement strategy across US, Mexico, and China?"
 )
-
-# white background
-# Apply custom CSS for white background
-st.markdown(
-    """
-    <style>
-    .main {
-        background-color: white;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 
 # initialize session state to hold results (useful later)
 if "optimization_results" not in st.session_state:
@@ -70,20 +57,23 @@ if run_button:
             country: run_monte_carlo(country, params, target_order_size)
             for country, params in COUNTRIES.items()
         }
-        all_costs = {
+        all_costs: dict[str, NDArray] = {
             country: results["total_cost"] for country, results in all_results.items()
         }
-        all_lost_units = {
+        all_lost_units: dict[str, NDArray] = {
             country: results["lost_units"] for country, results in all_results.items()
         }
         # create the per-unit cost dictionary specifically for the optimizer
-        all_costs_per_lamp = {
+        all_costs_per_lamp: dict[str, NDArray] = {
             country: total_costs / target_order_size
             for country, total_costs in all_costs.items()
         }
 
         # 2. run the optimization
         result = optimize_without_yield(all_costs_per_lamp, risk_tolerance, None)
+
+        # Toggle to see the diagnostics function of our optimization
+        # print(result["diagnostics"])
 
         if result:
             # 3. calculate portfolio-level metrics
